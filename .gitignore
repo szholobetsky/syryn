@@ -13,6 +13,7 @@ env/
 # Build / distribution
 dist/
 build/
+old/
 *.egg-info/
 
 # Testing
