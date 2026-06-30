@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "syryn"
+version = "0.1.0"
+description = "Bluetooth identity beacon for headless Linux devices — returns hostname, mDNS, and active network interfaces over RFCOMM."
+requires-python = ">=3.10"
+readme = {file = "README.md", content-type = "text/markdown"}
+dependencies = [
+    "PyBluez2>=0.46",
+    "psutil>=5.9",
+    "requests>=2.28",
+]
+
+[project.urls]
+Homepage   = "https://github.com/szholobetsky/syryn"
+Repository = "https://github.com/szholobetsky/syryn"
+
+[project.scripts]
+syryn = "syryn.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["syryn*"]
+
+[tool.setuptools.package-data]
+"syryn" = ["**/*"]
