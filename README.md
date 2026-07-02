@@ -28,28 +28,42 @@ No display needed. No SSH session. No prior knowledge of the IP address.
 
 ### 1. System packages (one-time)
 
-Debian / Ubuntu:
+syryn uses the BlueZ D-Bus API directly — **no PyBluez2 required**.
+
+Debian / Ubuntu / Xubuntu:
 ```bash
-sudo apt install bluez python3-dev libbluetooth-dev python3-pip
+sudo apt install bluez python3-dbus python3-gi
 ```
 
 Fedora / RHEL:
 ```bash
-sudo dnf install bluez bluez-libs-devel python3-devel python3-pip
+sudo dnf install bluez python3-dbus python3-gobject
 ```
 
 ### 2. Enable Bluetooth
 
 ```bash
-systemctl status bluetooth        # check if bluetoothd is running
 sudo systemctl enable bluetooth --now   # start and enable on boot
 
-rfkill list                       # check if adapter is blocked
-sudo rfkill unblock bluetooth     # unblock if needed
+rfkill list                             # check if adapter is blocked
+sudo rfkill unblock bluetooth           # unblock if needed
+
+bluetoothctl discoverable on            # make device visible
 ```
+
+To keep the device permanently discoverable, add `DiscoverableTimeout = 0` to
+`/etc/bluetooth/main.conf` and restart `bluetooth.service`.
 
 ### 3. Install syryn
 
+syryn uses system D-Bus libraries. Install with `--system-site-packages` so pipx
+can find them:
+
+```bash
+pipx install syryn --system-site-packages
+```
+
+Or without pipx:
 ```bash
 pip install syryn
 ```
@@ -57,21 +71,24 @@ pip install syryn
 ### 4. Run
 
 ```bash
-syryn          # start beacon, prints port and hostname
-syryn -q       # quiet mode, no output
+syryn               # auto-pairing, no PIN
+syryn --pin 1234    # hardcoded PIN for all incoming pairs
+syryn -q            # quiet mode, no log output
 ```
 
-Syryn starts a Bluetooth RFCOMM server and waits for connections.
-The Bluetooth device name visible to other devices is the system hostname
+Syryn registers a Serial Port Profile (SPP) via BlueZ and a pairing agent so
+connecting devices are accepted automatically (no manual PIN prompt). The device
+name visible to other devices is the system hostname
 (set via `hostnamectl set-hostname <name>`).
 
 ### 5. Connect from another device
 
 From any device with a Bluetooth terminal app (e.g. **Serial Bluetooth Terminal** on Android):
 
-1. Pair with the headless device
-2. Connect to the **Syryn** service
-3. Send `STATUS` — receive hostname, mDNS, interfaces, external IP
+1. Scan for Bluetooth devices — the headless device appears by hostname
+2. Pair (accepted automatically by syryn)
+3. Connect to the **Syryn** service (Serial Port)
+4. Send `STATUS` — receive hostname, mDNS, interfaces, external IP
 
 ---
 
@@ -79,7 +96,8 @@ From any device with a Bluetooth terminal app (e.g. **Serial Bluetooth Terminal*
 
 - Linux with BlueZ (`bluetoothd` running)
 - Python 3.10+
-- `PyBluez2`, `psutil`, `requests`
+- `python3-dbus` + `python3-gi` (system packages) — BlueZ D-Bus interface and pairing agent
+- `psutil`, `requests` (installed automatically via pip)
 
 ---
 

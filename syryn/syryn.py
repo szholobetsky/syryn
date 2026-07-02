@@ -1,24 +1,17 @@
-"""RFCOMM server: listens for Bluetooth connections, responds to STATUS command."""
+"""Bluetooth identity beacon: registers SPP profile via BlueZ D-Bus, responds to STATUS."""
 from __future__ import annotations
 
 import datetime
+import os
 import socket
 import sys
-
-try:
-    import bluetooth
-except ModuleNotFoundError:
-    sys.exit(
-        "syryn requires PyBluez2 and Linux BlueZ.\n"
-        "Debian/Ubuntu:  sudo apt install bluez python3-dev libbluetooth-dev\n"
-        "Fedora/RHEL:    sudo dnf install bluez bluez-libs-devel python3-devel\n"
-        "Then:           pip install PyBluez2"
-    )
+import threading
 
 import psutil
 import requests
 
 CACHE_TTL = 300
+SPP_UUID = "00001101-0000-1000-8000-00805f9b34fb"
 
 _ip_cache: dict = {}
 
@@ -60,53 +53,158 @@ def build_status() -> str:
     return "\n".join(lines)
 
 
-def _handle_client(client_sock: bluetooth.BluetoothSocket) -> None:
+def _handle_client(sock: socket.socket, verbose: bool) -> None:
     try:
         while True:
-            data = client_sock.recv(1024)
+            data = sock.recv(1024)
             if not data:
+                if verbose:
+                    print("[syryn] client closed connection")
                 break
             cmd = data.decode("utf-8", errors="ignore").strip()
+            if verbose:
+                print(f"[syryn] recv: {cmd!r}")
             if not cmd or cmd.upper() == "STATUS":
-                client_sock.sendall((build_status() + "\n").encode("utf-8"))
-    except OSError:
-        pass
+                response = (build_status() + "\n").encode("utf-8")
+                sock.sendall(response)
+                if verbose:
+                    print(f"[syryn] sent {len(response)} bytes")
+    except OSError as e:
+        if verbose:
+            print(f"[syryn] client error: {e}")
     finally:
-        client_sock.close()
+        sock.close()
 
 
-def serve(verbose: bool = True) -> None:
-    server_sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-    server_sock.bind(("", bluetooth.PORT_ANY))
-    server_sock.listen(1)
-    port = server_sock.getsockname()[1]
-
+def serve(verbose: bool = True, pin: str | None = None) -> None:
     try:
-        bluetooth.advertise_service(
-            server_sock,
-            "Syryn",
-            service_classes=[bluetooth.SERIAL_PORT_CLASS],
-            profiles=[bluetooth.SERIAL_PORT_PROFILE],
+        import dbus
+        import dbus.service
+        import dbus.mainloop.glib
+        from gi.repository import GLib
+    except ImportError:
+        sys.exit(
+            "syryn requires python3-dbus and python3-gi.\n"
+            "  Debian/Ubuntu/Xubuntu:  sudo apt install python3-dbus python3-gi\n"
+            "  Fedora/RHEL:            sudo dnf install python3-dbus python3-gobject"
         )
+
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+
+    # Find first Bluetooth adapter and make it discoverable
+    try:
+        obj_mgr = dbus.Interface(
+            bus.get_object("org.bluez", "/"),
+            "org.freedesktop.DBus.ObjectManager",
+        )
+        for path, ifaces in obj_mgr.GetManagedObjects().items():
+            if "org.bluez.Adapter1" in ifaces:
+                props = dbus.Interface(
+                    bus.get_object("org.bluez", path),
+                    "org.freedesktop.DBus.Properties",
+                )
+                props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(True))
+                props.Set("org.bluez.Adapter1", "DiscoverableTimeout", dbus.UInt32(0))
+                if verbose:
+                    print(f"[syryn] adapter {path}: discoverable on")
+                break
     except Exception as e:
         if verbose:
-            print(f"[syryn] SDP advertise skipped: {e}")
+            print(f"[syryn] could not set discoverable: {e}")
+
+    PROFILE_PATH = "/syryn/profile"
+    AGENT_PATH = "/syryn/agent"
+    AGENT_IFACE = "org.bluez.Agent1"
+
+    class SyrynProfile(dbus.service.Object):
+        @dbus.service.method("org.bluez.Profile1",
+                             in_signature="oha{sv}", out_signature="")
+        def NewConnection(self, path, fd, properties):
+            raw_fd = fd.take() if hasattr(fd, "take") else int(fd)
+            sock = socket.socket(fileno=raw_fd)
+            sock.setblocking(True)
+            if verbose:
+                print(f"[syryn] connected: {path}")
+            threading.Thread(
+                target=_handle_client, args=(sock, verbose), daemon=True
+            ).start()
+
+        @dbus.service.method("org.bluez.Profile1",
+                             in_signature="o", out_signature="")
+        def RequestDisconnection(self, path):
+            if verbose:
+                print(f"[syryn] disconnected: {path}")
+
+        @dbus.service.method("org.bluez.Profile1",
+                             in_signature="", out_signature="")
+        def Release(self):
+            pass
+
+    class Agent(dbus.service.Object):
+        @dbus.service.method(AGENT_IFACE, in_signature="o", out_signature="s")
+        def RequestPinCode(self, device):
+            return pin or "0000"
+
+        @dbus.service.method(AGENT_IFACE, in_signature="o", out_signature="u")
+        def RequestPasskey(self, device):
+            return dbus.UInt32(int(pin or "0"))
+
+        @dbus.service.method(AGENT_IFACE, in_signature="ou", out_signature="")
+        def RequestConfirmation(self, device, passkey):
+            pass
+
+        @dbus.service.method(AGENT_IFACE, in_signature="os", out_signature="")
+        def AuthorizeService(self, device, uuid):
+            pass
+
+        @dbus.service.method(AGENT_IFACE, in_signature="o", out_signature="")
+        def RequestAuthorization(self, device):
+            pass
+
+        @dbus.service.method(AGENT_IFACE, in_signature="", out_signature="")
+        def Release(self):
+            pass
+
+        @dbus.service.method(AGENT_IFACE, in_signature="", out_signature="")
+        def Cancel(self):
+            pass
+
+    SyrynProfile(bus, PROFILE_PATH)
+    Agent(bus, AGENT_PATH)
+
+    bluez = bus.get_object("org.bluez", "/org/bluez")
+
+    agent_mgr = dbus.Interface(bluez, "org.bluez.AgentManager1")
+    capability = "KeyboardDisplay" if pin else "NoInputNoOutput"
+    try:
+        agent_mgr.RegisterAgent(AGENT_PATH, capability)
+        agent_mgr.RequestDefaultAgent(AGENT_PATH)
+    except Exception as e:
+        if verbose:
+            print(f"[syryn] agent skipped: {e}")
+
+    profile_mgr = dbus.Interface(bluez, "org.bluez.ProfileManager1")
+    try:
+        profile_mgr.RegisterProfile(
+            PROFILE_PATH,
+            SPP_UUID,
+            {"Name": dbus.String("Syryn"), "AutoConnect": dbus.Boolean(False)},
+        )
+        if verbose:
+            print(f"[syryn] SPP registered  |  hostname: {get_hostname()}")
+    except Exception as e:
+        if verbose:
+            print(f"[syryn] SPP registration failed: {e}")
+        sys.exit(1)
 
     if verbose:
-        print(f"[syryn] RFCOMM port {port}  |  hostname: {get_hostname()}")
         print("[syryn] waiting for connections (Ctrl+C to stop)")
 
+    loop = GLib.MainLoop()
     try:
-        while True:
-            client_sock, addr = server_sock.accept()
-            if verbose:
-                print(f"[syryn] connected: {addr}")
-            _handle_client(client_sock)
-            if verbose:
-                print(f"[syryn] disconnected: {addr}")
+        loop.run()
     except KeyboardInterrupt:
-        pass
-    finally:
-        server_sock.close()
+        loop.quit()
         if verbose:
             print("[syryn] stopped")
