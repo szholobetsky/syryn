@@ -103,7 +103,7 @@ From any device with a Bluetooth terminal app (e.g. **Serial Bluetooth Terminal*
 
 ## Part of the SIMARGL toolkit
 
-syryn is one of seven tools that together form an **intellectual development support system**:
+syryn is one of eight tools that together form an **intellectual development support system**:
 
 | Tool | Role |
 |---|---|
@@ -114,6 +114,7 @@ syryn is one of seven tools that together form an **intellectual development sup
 | **[radogast](https://github.com/szholobetsky/radogast)** | Context drift monitor — measures how far an AI agent's conversation has drifted from the original task |
 | **[vyrii](https://github.com/szholobetsky/vyrii)** | Local AI web UI — chat, translate, web research, RAG, and file management via Gradio; powered by Ollama or any OpenAI-compatible backend |
 | **[syryn](https://github.com/szholobetsky/syryn)** | Bluetooth identity beacon — returns hostname, mDNS, and active network interfaces for headless devices |
+| **[alkonost](https://github.com/szholobetsky/alkonost)** | Task-board viewer/editor — Trello-style board and backlog over 1bcoder's `deepagent_task` output, with full spec rendering and autosave |
 
 ---
 
