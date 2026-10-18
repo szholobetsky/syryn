@@ -144,7 +144,7 @@ def _handle_client(sock: socket.socket, verbose: bool) -> None:
 
 def serve(verbose: bool = True, pin: str | None = None, name: bool = True,
           ble: bool = True, swiftpair: bool = True, prefix: str | None = None,
-          interval: int = 15) -> None:
+          interval: int = 15, iface: str = "lan") -> None:
     try:
         import dbus
         import dbus.service
