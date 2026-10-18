@@ -143,7 +143,7 @@ def _handle_client(sock: socket.socket, verbose: bool) -> None:
 
 
 def serve(verbose: bool = True, pin: str | None = None, name: bool = True,
-          ble: bool = True, swiftpair: bool = True, prefix: str | None = None,
+          ble: bool = True, swiftpair: bool = False, prefix: str | None = None,
           interval: int = 15, iface: str = "lan") -> None:
     try:
         import dbus
@@ -151,11 +151,17 @@ def serve(verbose: bool = True, pin: str | None = None, name: bool = True,
         import dbus.mainloop.glib
         from gi.repository import GLib
     except ImportError:
-        sys.exit(
-            "syryn requires python3-dbus and python3-gi.\n"
-            "  Debian/Ubuntu/Xubuntu:  sudo apt install python3-dbus python3-gi\n"
-            "  Fedora/RHEL:            sudo dnf install python3-dbus python3-gobject"
-        )
+        msg = ("syryn requires python3-dbus and python3-gi.\n"
+               "  Debian/Ubuntu/Xubuntu:  sudo apt install python3-dbus python3-gi\n"
+               "  Fedora/RHEL:            sudo dnf install python3-dbus python3-gobject")
+        if sys.prefix != sys.base_prefix:
+            # pipx / venv: the apt packages may be installed, but this isolated
+            # environment can't see them
+            msg += ("\n\nIf they are already installed, this Python is an isolated venv"
+                    f" ({sys.prefix}) that can't see them. Reinstall with system packages:\n"
+                    "  pipx uninstall syryn && pipx install --system-site-packages syryn\n"
+                    "  or: python3 -m venv --system-site-packages <dir>")
+        sys.exit(msg)
 
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()

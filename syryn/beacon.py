@@ -108,7 +108,7 @@ class Beacon:
     """Keeps the Bluetooth name equal to the current IP; refresh() is a GLib timeout callback."""
 
     def __init__(self, bus, verbose: bool = True, alias: bool = True, ble: bool = True,
-                 swiftpair: bool = True, prefix: str | None = None, iface: str = "lan"):
+                 swiftpair: bool = False, prefix: str | None = None, iface: str = "lan"):
         self.bus = bus
         self.verbose = verbose
         self.alias = alias

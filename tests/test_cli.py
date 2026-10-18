@@ -19,3 +19,17 @@ def test_serve_accepts_every_cli_argument(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["syryn", "serve", "--iface", "eth0", "--prefix", "X"])
     cli.main()
     assert seen["iface"] == "eth0" and seen["prefix"] == "X"
+
+
+def test_swiftpair_is_opt_in(monkeypatch):
+    from syryn import install
+    baked = {}
+    monkeypatch.setattr(install, "install", lambda serve_args, dry=False: baked.setdefault("a", serve_args))
+    for argv, want in ((["syryn", "install"], []),
+                       (["syryn", "install", "--swiftpair"], ["--swiftpair"]),
+                       (["syryn", "install", "--no-swiftpair"], [])):
+        baked.clear()
+        monkeypatch.setattr(sys, "argv", argv)
+        cli.main()
+        assert baked["a"] == want
+    assert inspect.signature(syryn.serve).parameters["swiftpair"].default is False

@@ -23,8 +23,12 @@ def main() -> None:
                    help="don't put the IP into the classic Bluetooth name")
     p.add_argument("--no-ble", dest="ble", action="store_false",
                    help="don't send the BLE advertisement (iPhone visibility, Windows popup)")
+    # off by default: Windows keeps offering to connect while the device is near
+    p.add_argument("--swiftpair", dest="swiftpair", action="store_true", default=False,
+                   help="also send the Microsoft Swift Pair beacon: Windows laptops nearby "
+                        "pop up 'New device found: P:<ip>' (and keep offering to connect)")
     p.add_argument("--no-swiftpair", dest="swiftpair", action="store_false",
-                   help="don't trigger the Windows Swift Pair popup")
+                   help=argparse.SUPPRESS)  # the default since 0.1.12, kept for old service files
     p.add_argument("--interval", type=int, default=15, metavar="SEC",
                    help="how often to check for an IP change (default: 15)")
     p.add_argument("--dry-run", action="store_true",
@@ -62,8 +66,8 @@ def _serve_args(args) -> list[str]:
         out.append("--no-name")
     if not args.ble:
         out.append("--no-ble")
-    if not args.swiftpair:
-        out.append("--no-swiftpair")
+    if args.swiftpair:
+        out.append("--swiftpair")
     if args.interval != 15:
         out += ["--interval", str(args.interval)]
     return out

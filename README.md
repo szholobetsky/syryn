@@ -39,7 +39,8 @@ hands out a new address, the name changes within `--interval` seconds (default 1
 |---|---|---|
 | Android — Settings → Bluetooth → pair new device | `P:192.168.0.131` | classic BR/EDR name (adapter alias) |
 | iPhone / iPad — Settings → Bluetooth | `P:192.168.0.131` | BLE advertisement with the HID service UUID (iOS lists only "connectable kinds" of devices) |
-| Windows 10/11 laptop nearby | **pop-up toast** "New Bluetooth device found: P:192.168.0.131" | Microsoft Swift Pair beacon |
+| Windows 10/11 — Settings → Bluetooth → Add device | `P:192.168.0.131` | classic name / BLE |
+| Windows 10/11 laptop nearby, with `--swiftpair` | **pop-up toast** "New Bluetooth device found: P:192.168.0.131" | Microsoft Swift Pair beacon |
 | macOS / Linux — Bluetooth settings | `P:192.168.0.131` | classic name / BLE |
 
 Notes:
@@ -51,8 +52,10 @@ Notes:
   `--iface auto` uses the default-route interface instead (may be Wi-Fi); `--iface wlan0` pins a specific one.
 - Devices you already **paired** with may cache the old name; unpaired scans show the current one.
 - Tapping the entry on iPhone/Windows tries to pair as a keyboard and fails harmlessly — you only need to read the name.
-- Swift Pair pop-up appears only when the laptop is close (Windows uses a signal-strength threshold)
-  and Settings → Bluetooth → "Show notifications to connect using Swift Pair" is on (default).
+- The Swift Pair pop-up is **off by default**: Windows keeps offering to connect to the device every
+  time it is near, which gets annoying fast. Turn it on with `--swiftpair`; it then appears only when
+  the laptop is close (Windows uses a signal-strength threshold) and Settings → Bluetooth →
+  "Show notifications to connect using Swift Pair" is on. That Windows switch also silences it.
 
 ### One-line install (starts on every boot)
 
@@ -128,8 +131,8 @@ syryn -q            # quiet mode, no log output
 syryn status        # print the STATUS text locally and exit
 syryn --iface auto  # name from the default-route interface instead of the LAN cable
 syryn --no-name     # keep the hostname as the Bluetooth name
-syryn --no-ble      # classic Bluetooth only (no iPhone visibility, no Windows pop-up)
-syryn --no-swiftpair
+syryn --no-ble      # classic Bluetooth only (no iPhone visibility)
+syryn --swiftpair   # also pop up "New device found: P:<ip>" on Windows laptops nearby
 ```
 
 Syryn registers a Serial Port Profile (SPP) via BlueZ and a pairing agent so
